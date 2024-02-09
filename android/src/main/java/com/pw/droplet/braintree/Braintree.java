@@ -7,7 +7,6 @@ import android.util.Log;
 import androidx.fragment.app.FragmentActivity;
 
 import com.braintreepayments.api.BraintreeFragment;
-import com.braintreepayments.api.DataCollector;
 import com.braintreepayments.api.GooglePayment;
 import com.braintreepayments.api.PayPal;
 import com.braintreepayments.api.Venmo;
@@ -256,44 +255,6 @@ public class Braintree extends ReactContextBaseJavaModule {
                     options.getString("googleMerchantId"));
         }
         GooglePayment.requestPayment(this.mBraintreeFragment, googlePaymentRequest);
-    }
-
-    @ReactMethod
-    public void getDeviceData(final ReadableMap options,
-                              final Callback successCallback,
-                              final Callback errorCallback) {
-        if (this.mBraintreeFragment instanceof BraintreeFragment) {
-            this.deviceDataCallback = successCallback;
-            this.collectDeviceData = true;
-            String type = options.getString("dataCollector");
-            if (type.equals("paypal")) {
-                DataCollector.collectPayPalDeviceData(
-                        this.mBraintreeFragment, new BraintreeResponseListener<String>() {
-                            @Override
-                            public void onResponse(String deviceData) {
-                                if (deviceData != null) {
-                                    successCallback.invoke(deviceData);
-                                } else {
-                                    errorCallback.invoke("BT:: DEVICE_DATA is empty.");
-                                }
-                            }
-                        });
-            } else {
-                DataCollector.collectDeviceData(
-                        this.mBraintreeFragment, new BraintreeResponseListener<String>() {
-                            @Override
-                            public void onResponse(String deviceData) {
-                                if (deviceData != null) {
-                                    successCallback.invoke(deviceData);
-                                } else {
-                                    errorCallback.invoke("BT:: DEVICE_DATA is empty.");
-                                }
-                            }
-                        });
-            }
-        } else {
-            errorCallback.invoke("BT:: DATA_COLLECTOR not init.");
-        }
     }
 
     public void onNewIntent(Intent intent) {
