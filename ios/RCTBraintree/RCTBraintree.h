@@ -10,22 +10,16 @@
 #import <React/RCTUtils.h>
 #import <React/RCTConvert.h>
 
-#import "BraintreeCore.h"
-#import "BraintreePayPal.h"
-#import "BraintreeVenmo.h"
-#import "BraintreeApplePay.h"
-#import "BraintreeCard.h"
-#import "BraintreeUI.h"
-#import "Braintree3DSecure.h"
-#import "BTDataCollector.h"
-#import "PPDataCollector.h"
+#import "Braintree.h"
+@import Braintree;
+#import <Braintree/Braintree.h>
 
 @import PassKit;
 
-@interface RCTBraintree : UIViewController <RCTBridgeModule, BTDropInViewControllerDelegate, BTViewControllerPresentingDelegate, PKPaymentAuthorizationViewControllerDelegate>
+@interface RCTBraintree : UIViewController <RCTBridgeModule, UIViewControllerPreviewingDelegate, PKPaymentAuthorizationViewControllerDelegate>
 
 @property (nonatomic, strong) BTAPIClient *braintreeClient;
-@property (nonatomic, strong, readwrite) BTThreeDSecureDriver *threeDSecure;
+@property (nonatomic, strong, readwrite) BTThreeDSecureClient *threeDSecure;
 @property (nonatomic, strong) UIViewController *reactRoot;
 @property (nonatomic, strong) BTDataCollector *dataCollector;
 

@@ -10,16 +10,16 @@ Pod::Spec.new do |s|
 
   s.authors      = package['author']
   s.homepage     = package['homepage']
-  s.platform     = :ios, "9.0"
+  s.platform     = :ios, "14.0"
 
   s.source       = { :git => "https://github.com/StronkMan/react-native-braintree-no-ui.git", :tag => "v#{s.version}" }
   s.source_files  = "ios/**/*.{h,m}"
 
-  s.dependency 'Braintree'
-  s.dependency 'Braintree/PayPal'
-  s.dependency 'Braintree/Venmo'
-  s.dependency 'Braintree/Apple-Pay'
-  s.dependency 'Braintree/3D-Secure'
-  s.dependency 'Braintree/DataCollector'
+  s.dependency 'Braintree', '6.18.0'
+  s.dependency 'Braintree/PayPal', '6.18.0'
+  s.dependency 'Braintree/Venmo', '6.18.0'
+  s.dependency 'Braintree/ApplePay', '6.18.0'
+  s.dependency 'Braintree/ThreeDSecure', '6.18.0'
+  s.dependency 'Braintree/DataCollector', '6.18.0'
   s.dependency 'React'
 end
