@@ -30,7 +30,7 @@ static NSString *URLScheme;
 }
 
 - (instancetype)init {
-  [super init];
+  self = [super init];
   return self;
 }
 RCT_EXPORT_MODULE();
@@ -57,8 +57,7 @@ RCT_EXPORT_METHOD(showPayPalViewController : (RCTResponseSenderBlock)callback) {
   dispatch_async(dispatch_get_main_queue(), ^{
       BTPayPalClient *payPalDriver =
         [[BTPayPalClient alloc] initWithAPIClient:self.braintreeClient];
-//    payPalDriver.viewControllerPresentingDelegate = self;
-      BTPayPalVaultRequest *request = [BTPayPalVaultRequest init];
+      BTPayPalVaultRequest *request = [[BTPayPalVaultRequest alloc] initWithOfferCredit:NO userAuthenticationEmail:nil];
       [payPalDriver tokenizeWithVaultRequest: request completion: ^(BTPayPalAccountNonce *tokenizedPayPalAccount, NSError *error) {
         NSMutableArray *args = @[ [NSNull null] ];
         if (error == nil && tokenizedPayPalAccount != nil) {
