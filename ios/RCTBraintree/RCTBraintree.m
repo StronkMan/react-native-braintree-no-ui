@@ -7,8 +7,6 @@
 //
 
 #import "RCTBraintree.h"
-#import <Braintree3DSecure.h>
-#import <BraintreeUI.h>
 #import <React/RCTLog.h>
 
 @implementation RCTBraintree {
@@ -32,13 +30,9 @@ static NSString *URLScheme;
 }
 
 - (instancetype)init {
-  if ((self = [super init])) {
-    self.dataCollector = [[BTDataCollector alloc]
-        initWithEnvironment:BTDataCollectorEnvironmentProduction];
-  }
+  [super init];
   return self;
 }
-
 RCT_EXPORT_MODULE();
 
 RCT_EXPORT_METHOD(setupWithURLScheme
@@ -46,9 +40,11 @@ RCT_EXPORT_METHOD(setupWithURLScheme
                   : (NSString *)urlscheme callback
                   : (RCTResponseSenderBlock)callback) {
   URLScheme = urlscheme;
-  [BTAppSwitch setReturnURLScheme:urlscheme];
+    BTAppContextSwitcher.sharedInstance.returnURLScheme = urlscheme;
   self.braintreeClient =
       [[BTAPIClient alloc] initWithAuthorization:clientToken];
+  self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:self.braintreeClient];
+
   if (self.braintreeClient == nil) {
     callback(@[ @false ]);
   } else {
@@ -59,56 +55,50 @@ RCT_EXPORT_METHOD(setupWithURLScheme
 
 RCT_EXPORT_METHOD(showPayPalViewController : (RCTResponseSenderBlock)callback) {
   dispatch_async(dispatch_get_main_queue(), ^{
-    BTPayPalDriver *payPalDriver =
-        [[BTPayPalDriver alloc] initWithAPIClient:self.braintreeClient];
-    payPalDriver.viewControllerPresentingDelegate = self;
+      BTPayPalClient *payPalDriver =
+        [[BTPayPalClient alloc] initWithAPIClient:self.braintreeClient];
+//    payPalDriver.viewControllerPresentingDelegate = self;
+      BTPayPalVaultRequest *request = [BTPayPalVaultRequest init];
+      [payPalDriver tokenizeWithVaultRequest: request completion: ^(BTPayPalAccountNonce *tokenizedPayPalAccount, NSError *error) {
+        NSMutableArray *args = @[ [NSNull null] ];
+        if (error == nil && tokenizedPayPalAccount != nil) {
+          args = [@[
+            [NSNull null], tokenizedPayPalAccount.nonce,
+            tokenizedPayPalAccount.email, tokenizedPayPalAccount.firstName,
+            tokenizedPayPalAccount.lastName
+          ] mutableCopy];
 
-    [payPalDriver
-        authorizeAccountWithCompletion:^(
-            BTPayPalAccountNonce *tokenizedPayPalAccount, NSError *error) {
-          NSMutableArray *args = @[ [NSNull null] ];
-          if (error == nil && tokenizedPayPalAccount != nil) {
-            args = [@[
-              [NSNull null], tokenizedPayPalAccount.nonce,
-              tokenizedPayPalAccount.email, tokenizedPayPalAccount.firstName,
-              tokenizedPayPalAccount.lastName
-            ] mutableCopy];
-
-            if (tokenizedPayPalAccount.phone != nil) {
-              [args addObject:tokenizedPayPalAccount.phone];
-            }
-          } else if (error != nil) {
-            args = @[ error.description, [NSNull null] ];
+          if (tokenizedPayPalAccount.phone != nil) {
+            [args addObject:tokenizedPayPalAccount.phone];
           }
-
-          callback(args);
-        }];
+        } else if (error != nil) {
+          args = @[ error.description, [NSNull null] ];
+        }
+        callback(args);
+      }];
   });
 }
 
 RCT_EXPORT_METHOD(showVenmoViewController : (RCTResponseSenderBlock)callback) {
   dispatch_async(dispatch_get_main_queue(), ^{
-    BTVenmoDriver *venmoDriver =
-        [[BTVenmoDriver alloc] initWithAPIClient:self.braintreeClient];
-
-    [venmoDriver
-        authorizeAccountAndVault:NO
-                      completion:^(BTVenmoAccountNonce *_Nullable venmoAccount,
-                                   NSError *_Nullable error) {
-                        NSMutableArray *args = @[ [NSNull null] ];
-                        if (error == nil && venmoAccount != nil) {
-                          if (venmoAccount.nonce != nil) {
-                            args = @[ [NSNull null], venmoAccount.nonce ];
-                          }
-                        } else {
-                          if (error != nil) {
-                            args = @[ error.description, [NSNull null] ];
-                          } else {
-                            args = @[ @"Payment Cancelled", [NSNull null] ];
-                          }
-                        }
-                        callback(args);
-                      }];
+      BTVenmoClient *venmoDriver =
+        [[BTVenmoClient alloc] initWithAPIClient:self.braintreeClient];
+      BTVenmoRequest *request = [BTVenmoRequest init];
+      [venmoDriver tokenizeWithVenmoRequest: request completion: ^(BTVenmoAccountNonce *venmoAccount, NSError *error) {
+          NSMutableArray *args = @[ [NSNull null] ];
+          if (error == nil && venmoAccount != nil) {
+            if (venmoAccount.nonce != nil) {
+              args = @[ [NSNull null], venmoAccount.nonce ];
+            }
+          } else {
+            if (error != nil) {
+              args = @[ error.description, [NSNull null] ];
+            } else {
+              args = @[ @"Payment Cancelled", [NSNull null] ];
+            }
+          }
+          callback(args);
+      }];
   });
 }
 
@@ -124,45 +114,16 @@ RCT_EXPORT_METHOD(getDeviceData
     NSString *dataSelector = options[@"dataCollector"];
 
 
-    // Initialize the data collector and specify environment
-    if ([environment isEqualToString:@"development"]) {
-      self.dataCollector = [[BTDataCollector alloc]
-          initWithEnvironment:BTDataCollectorEnvironmentDevelopment];
-    } else if ([environment isEqualToString:@"qa"]) {
-      self.dataCollector = [[BTDataCollector alloc]
-          initWithEnvironment:BTDataCollectorEnvironmentQA];
-    } else if ([environment isEqualToString:@"sandbox"]) {
-      self.dataCollector = [[BTDataCollector alloc]
-          initWithEnvironment:BTDataCollectorEnvironmentSandbox];
-    }
+    [self.dataCollector collectDeviceData:^(NSString *dataToken, NSError *error) {
+        NSArray *args = @[];
+        if (error == nil) {
+            args = @[ [NSNull null], dataToken ];
+        } else {
+            args = @[ error.description, [NSNull null] ];
+        }
 
- 
-
-    // Data collection methods
-    if ([dataSelector isEqualToString:@"card"]) {
-      deviceData = [self.dataCollector collectCardFraudData];
-    } else if ([dataSelector isEqualToString:@"both"]) {
-      deviceData = [self.dataCollector collectFraudData];
-    } else if ([dataSelector isEqualToString:@"paypal"]) {
-      deviceData = [PPDataCollector collectPayPalDeviceData];
-    } else {
-      NSMutableDictionary *details = [NSMutableDictionary dictionary];
-      [details setValue:@"Invalid data collector"
-                 forKey:NSLocalizedDescriptionKey];
-      error = [NSError errorWithDomain:@"RCTBraintree"
-                                  code:255
-                              userInfo:details];
-      NSLog(@"Invalid data collector. Use one of: card, paypal or both");
-    }
-
-    NSArray *args = @[];
-    if (error == nil) {
-      args = @[ [NSNull null], deviceData ];
-    } else {
-      args = @[ error.description, [NSNull null] ];
-    }
-
-    callback(args);
+        callback(args);
+    }];
   });
 }
 
@@ -222,7 +183,7 @@ RCT_EXPORT_METHOD(showApplePayViewController
            annotation:(id)annotation {
 
   if ([url.scheme localizedCaseInsensitiveCompare:URLScheme] == NSOrderedSame) {
-    return [BTAppSwitch handleOpenURL:url sourceApplication:sourceApplication];
+    return [BTAppContextSwitcher.sharedInstance handleOpenURL:url];
   }
   return NO;
 }
@@ -288,7 +249,7 @@ RCT_EXPORT_METHOD(showApplePayViewController
                            @"nonce" : tokenizedApplePayPayment.nonce,
                            @"type" : tokenizedApplePayPayment.type,
                            @"localizedDescription" :
-                               tokenizedApplePayPayment.localizedDescription,
+                               tokenizedApplePayPayment.description,
                            @"billingContact" : @{
                              @"streetAddress" : paymentAddress.street,
                              @"city" : paymentAddress.city,

@@ -214,7 +214,7 @@ public class Braintree extends ReactContextBaseJavaModule {
         this.errorCallback = errorCallback;
         PayPalRequest request = new PayPalRequest().currencyCode("USD").intent(
                 PayPalRequest.INTENT_AUTHORIZE);
-        PayPal.requestBillingAgreement(this.mBraintreeFragment, request, onPaymentMethodNonceCreated);
+        PayPal.tokenizePayPalAccount(this.mBraintreeFragment, request, onPaymentMethodNonceCreated);
     }
 
     @ReactMethod
