@@ -83,7 +83,7 @@ RCT_EXPORT_METHOD(showVenmoViewController : (RCTResponseSenderBlock)callback) {
   dispatch_async(dispatch_get_main_queue(), ^{
       BTVenmoClient *venmoDriver =
         [[BTVenmoClient alloc] initWithAPIClient:self.braintreeClient];
-      BTVenmoRequest *request = [BTVenmoRequest init];
+      BTVenmoRequest *request = [[BTVenmoRequest alloc] initWithPaymentMethodUsage:BTVenmoPaymentMethodUsageMultiUse];
       [venmoDriver tokenizeWithVenmoRequest: request completion: ^(BTVenmoAccountNonce *venmoAccount, NSError *error) {
           NSMutableArray *args = @[ [NSNull null] ];
           if (error == nil && venmoAccount != nil) {
