@@ -2,9 +2,8 @@
 
 Follow both setup guide with native sdk first
 
-https://developers.braintreepayments.com/guides/client-sdk/setup/android/v3
-
-https://developers.braintreepayments.com/guides/client-sdk/setup/ios/v4
+https://developer.paypal.com/braintree/docs/guides/client-sdk/setup/android/v4
+https://developer.paypal.com/braintree/docs/guides/client-sdk/setup/ios/v6
 
 ## Usage
 
