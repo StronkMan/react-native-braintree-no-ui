@@ -3,6 +3,7 @@
 Follow both setup guide with native sdk first
 
 https://developer.paypal.com/braintree/docs/guides/client-sdk/setup/android/v4
+
 https://developer.paypal.com/braintree/docs/guides/client-sdk/setup/ios/v6
 
 ## Usage
