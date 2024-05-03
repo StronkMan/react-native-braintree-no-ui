@@ -1,7 +1,5 @@
 package com.pw.droplet.braintree;
 
-import com.braintreepayments.browserswitch.BrowserSwitchActivity;
-
 /**
  * Helper Activity that captures the response when browser switch completes.
  */
