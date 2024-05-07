@@ -8,35 +8,47 @@ import android.app.Activity;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentActivity;
 
-import com.braintreepayments.api.GooglePayListener;
-
 import com.braintreepayments.api.BraintreeRequestCodes;
-import com.braintreepayments.api.DataCollectorRequest;
-import com.braintreepayments.api.DataCollector;
+import com.braintreepayments.api.BraintreeClient;
+import com.braintreepayments.api.BraintreeError;
+
+import com.braintreepayments.api.GooglePayClient;
 import com.braintreepayments.api.GooglePayListener;
+import com.braintreepayments.api.GooglePayOnActivityResultCallback;
+import com.braintreepayments.api.GooglePayCardNonce;
+import com.braintreepayments.api.GooglePayRequest;
+
+import com.braintreepayments.api.PayPalVaultRequest;
 import com.braintreepayments.api.PayPalDataCollectorRequest;
 import com.braintreepayments.api.PayPalDataCollectorCallback;
-import com.braintreepayments.api.PayPalDataCollector;
-
 import com.braintreepayments.api.PayPalListener;
-import com.braintreepayments.api.PaymentMethodNonce;
+import com.braintreepayments.api.PayPalDataCollector;
+import com.braintreepayments.api.PayPalPaymentIntent;
+import com.braintreepayments.api.PayPalCheckoutRequest;
+import com.braintreepayments.api.PayPalClient;
+
+import com.braintreepayments.api.VenmoClient;
+import com.braintreepayments.api.VenmoRequest;
 import com.braintreepayments.api.VenmoListener;
+import com.braintreepayments.api.VenmoPaymentMethodUsage;
+import com.braintreepayments.api.VenmoOnActivityResultCallback;
+import com.braintreepayments.api.VenmoAccountNonce;
+
+import com.braintreepayments.api.DataCollectorRequest;
+import com.braintreepayments.api.DataCollector;
+import com.braintreepayments.api.DataCollectorCallback;
+
+import com.braintreepayments.api.ErrorWithResponse;
+import com.braintreepayments.api.InvalidArgumentException;
+import com.braintreepayments.api.PaymentMethodNonce;
+
+import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.BaseActivityEventListener;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.WritableMap;
-import com.braintreepayments.api.GooglePayCardNonce;
-import com.braintreepayments.api.GooglePayRequest;
-import com.braintreepayments.api.InvalidArgumentException;
-import com.facebook.react.bridge.ActivityEventListener;
-import com.facebook.react.bridge.BaseActivityEventListener;
-import com.braintreepayments.api.DataCollectorCallback;
-import com.braintreepayments.api.ErrorWithResponse;
-import com.braintreepayments.api.BraintreeError;
-import com.braintreepayments.api.GooglePayClient;
-import com.braintreepayments.api.BraintreeClient;
-import com.braintreepayments.api.PayPalClient;
-import com.braintreepayments.api.VenmoClient;
+
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableNativeMap;
@@ -55,22 +67,23 @@ public class Braintree extends ReactContextBaseJavaModule {
   private Boolean collectDeviceData = false;
   private Callback successCallback;
   private Callback errorCallback;
+  private Context mContext;
   private BraintreeClient braintreeClient;
 
   private GooglePayClient mGooglePayClient;
   private PayPalClient mPayPalClient;
   private VenmoClient mVenmoClient;
+
   private DataCollectorRequest googleDataCollectorRequest;
   private DataCollectorRequest venmoDataCollectorRequest;
-
-  private PayPalDataCollectorRequest payPalDataCollectorRequest;
-
-  private Context mContext;
-  private GooglePayListener googlePayListener;
   private DataCollector googleDataCollector;
   private DataCollector venmoDataCollector;
-
+  private PayPalDataCollectorRequest payPalDataCollectorRequest;
   private PayPalDataCollector payPalDataCollector;
+
+  private GooglePayListener googlePayListener;
+  private VenmoListener venmoListener;
+  private PayPalListener payPalListener;
 
   public Braintree(ReactApplicationContext reactContext) {
     super(reactContext);
@@ -181,7 +194,7 @@ public class Braintree extends ReactContextBaseJavaModule {
   public void setup(final String token, final Callback successCallback,
                     final Callback errorCallback) {
     this.braintreeClient = new BraintreeClient(mContext, token);
-    this.mGooglePayClient  = new GooglePayClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
+    this.mGooglePayClient = new GooglePayClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
     this.mGooglePayClient.setListener((GooglePayListener) mContext);
 
     this.mPayPalClient = new PayPalClient(this.braintreeClient);
@@ -210,65 +223,51 @@ public class Braintree extends ReactContextBaseJavaModule {
     this.errorCallback.invoke(error);
   }
 
-//  private final ActivityEventListener activityEventListener =
-//    new BaseActivityEventListener() {
-//      @Override
-//      public void onActivityResult(Activity activity, int requestCode,
-//                                   int resultCode, Intent data) {
-//        int unshiftRequestCode = requestCode & 0x0000ffff;
-//        if (unshiftRequestCode == BraintreeRequestCodes.GOOGLE_PAY) {
-//          if (data != null) {
-//            switch (resultCode) {
-//              case Activity.RESULT_OK:
-////                GooglePayClient.tokenize(this.mGooglePayClient,
-////                  PaymentData.getFromIntent(data));
-//                break;
-//              case Activity.RESULT_CANCELED:
-//                nonceErrorCallback("USER_CANCELLATION");
-//                break;
-//            }
-//          } else {
-//            nonceErrorCallback("NO_DATA_AVAILABLE");
-//          }
-//        }
-//      }
-//    };
-
 
   private final ActivityEventListener activityEventListener =
     new BaseActivityEventListener() {
       @Override
       public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-//        super.onActivityResult(requestCode, resultCode, data);
+
         switch (requestCode) {
           case BraintreeRequestCodes.GOOGLE_PAY:
-            this.mGooglePayClient.tokenize(data);
-            break;
-          case BraintreeRequestCodes.PAYPAL:
-    //        this.mGooglePayClient.tokenize(data);
-            break;
-          case BraintreeRequestCodes.VENMO:
-    //        venmoClient.onActivityResult(this, resultCode, data, this::handleVenmoResult);
+            GooglePayOnActivityResultCallback googlePayOnActivityResultCallback = new GooglePayOnActivityResultCallback() {
+              @Override
+              public void onResult(@Nullable PaymentMethodNonce paymentMethodNonce, @Nullable Exception error) {
+                if (paymentMethodNonce != null) {
+                  googlePayListener.onGooglePaySuccess(paymentMethodNonce);
+                } else if (error != null) {
+                  googlePayListener.onGooglePayFailure(error);
+                }
+              }
+            };
+              mGooglePayClient.tokenize(PaymentData.getFromIntent(data), googlePayOnActivityResultCallback);
             break;
         }
       }
     };
 
-//  @Override
-//  protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-//    super.onActivityResult(requestCode, resultCode, data);
-//    switch (requestCode) {
-//      case BraintreeRequestCodes.GOOGLE_PAY:
-//        this.mGooglePayClient.tokenize(data);
-//        break;
-//      case BraintreeRequestCodes.PAYPAL:
-////        this.mGooglePayClient.tokenize(data);
-//        break;
-//      case BraintreeRequestCodes.VENMO:
-////        venmoClient.onActivityResult(this, resultCode, data, this::handleVenmoResult);
-//        break;
-//    }
-//  }
+  @ReactMethod
+  public void paypalRequest(final Callback successCallback,
+                            final Callback errorCallback) {
+    this.successCallback = successCallback;
+    this.errorCallback = errorCallback;
+    PayPalCheckoutRequest request = new PayPalCheckoutRequest("1.00");
+    request.setCurrencyCode("USD");
+    request.setIntent(PayPalPaymentIntent.AUTHORIZE);
+    this.mPayPalClient.tokenizePayPalAccount((FragmentActivity) getCurrentActivity(), request);
+  }
+
+  @ReactMethod
+  public void venmoRequest(final Callback successCallback,
+                           final Callback errorCallback) {
+    this.successCallback = successCallback;
+    this.errorCallback = errorCallback;
+    VenmoRequest request = new VenmoRequest(VenmoPaymentMethodUsage.MULTI_USE);
+    request.setShouldVault(false);
+
+    this.mVenmoClient.tokenizeVenmoAccount((FragmentActivity) getCurrentActivity(), request);
+  }
 
   @ReactMethod
   public void showGooglePayViewController(final ReadableMap options,
@@ -297,7 +296,7 @@ public class Braintree extends ReactContextBaseJavaModule {
       this.deviceDataCallback = successCallback;
       this.collectDeviceData = true;
       if (this.mPayPalClient instanceof PayPalClient) {
-        payPalDataCollectorRequest = new PayPalDataCollectorRequest(true, null);
+        payPalDataCollectorRequest = new PayPalDataCollectorRequest(false, null);
         PayPalDataCollectorCallback payPalDataCollectorCallback = new PayPalDataCollectorCallback() {
           @Override
           public void onResult(@Nullable String deviceData, @Nullable Exception error) {
@@ -312,7 +311,7 @@ public class Braintree extends ReactContextBaseJavaModule {
 
         payPalDataCollector.collectDeviceData(this.mContext, payPalDataCollectorRequest,  payPalDataCollectorCallback);
       } else if(this.mGooglePayClient instanceof GooglePayClient) {
-        googleDataCollectorRequest = new DataCollectorRequest(true);
+        googleDataCollectorRequest = new DataCollectorRequest(false);
         DataCollectorCallback googleDataCollectorCallback = new DataCollectorCallback() {
           @Override
           public void onResult(@Nullable String deviceData, @Nullable Exception error) {
@@ -326,7 +325,7 @@ public class Braintree extends ReactContextBaseJavaModule {
 
         googleDataCollector.collectDeviceData(this.mContext, googleDataCollectorRequest,googleDataCollectorCallback);
       }  else if(this.mVenmoClient instanceof VenmoClient) {
-        venmoDataCollectorRequest = new DataCollectorRequest(true);
+        venmoDataCollectorRequest = new DataCollectorRequest(false);
         DataCollectorCallback venmoDataCollectorCallback = new DataCollectorCallback() {
           @Override
           public void onResult(@Nullable String deviceData, @Nullable Exception error) {
