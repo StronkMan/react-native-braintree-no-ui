@@ -105,6 +105,20 @@ public class Braintree extends ReactContextBaseJavaModule {
     this.token = token;
   }
 
+  @ReactMethod
+  public void setup(final String token, final Callback successCallback,
+                    final Callback errorCallback) {
+    this.braintreeClient = new BraintreeClient(mContext, token);
+    this.mGooglePayClient = new GooglePayClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
+    this.mGooglePayClient.setListener((GooglePayListener) mContext);
+
+    this.mPayPalClient = new PayPalClient(this.braintreeClient);
+    this.mPayPalClient.setListener((PayPalListener) mContext);
+
+    this.mVenmoClient = new VenmoClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
+    this.mVenmoClient.setListener((VenmoListener) mContext);
+  }
+
   public void onCancel(int requestCode) {
     nonceErrorCallback("USER_CANCELLATION");
   }
@@ -189,23 +203,6 @@ public class Braintree extends ReactContextBaseJavaModule {
       }
     }
   }
-
-  @ReactMethod
-  public void setup(final String token, final Callback successCallback,
-                    final Callback errorCallback) {
-    this.braintreeClient = new BraintreeClient(mContext, token);
-    this.mGooglePayClient = new GooglePayClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
-    this.mGooglePayClient.setListener((GooglePayListener) mContext);
-
-    this.mPayPalClient = new PayPalClient(this.braintreeClient);
-    this.mPayPalClient.setListener((PayPalListener) mContext);
-
-    this.mVenmoClient = new VenmoClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
-    this.mVenmoClient.setListener((VenmoListener) mContext);
-  }
-
-
-
 
   public void nonceCallback(String nonce) {
     if (nonce != null) {
