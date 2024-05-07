@@ -1,37 +1,46 @@
 package com.pw.droplet.braintree;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.util.Log;
+import android.content.Context;
+import android.app.Activity;
 
+import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentActivity;
 
-import com.braintreepayments.api.Client;
+import com.braintreepayments.api.GooglePayListener;
+
+import com.braintreepayments.api.BraintreeRequestCodes;
+import com.braintreepayments.api.DataCollectorRequest;
 import com.braintreepayments.api.DataCollector;
-import com.braintreepayments.api.GooglePayment;
-import com.braintreepayments.api.PayPal;
-import com.braintreepayments.api.Venmo;
-import com.braintreepayments.api.exceptions.BraintreeError;
-import com.braintreepayments.api.exceptions.ErrorWithResponse;
-import com.braintreepayments.api.exceptions.InvalidArgumentException;
-import com.braintreepayments.api.interfaces.BraintreeCancelListener;
-import com.braintreepayments.api.interfaces.BraintreeErrorListener;
-import com.braintreepayments.api.interfaces.BraintreeResponseListener;
-import com.braintreepayments.api.interfaces.PaymentMethodNonceCreatedListener;
-import com.braintreepayments.api.models.BraintreeRequestCodes;
-import com.braintreepayments.api.models.GooglePaymentCardNonce;
-import com.braintreepayments.api.models.GooglePaymentRequest;
-import com.braintreepayments.api.models.PayPalRequest;
-import com.braintreepayments.api.models.PaymentMethodNonce;
-import com.facebook.react.bridge.ActivityEventListener;
-import com.facebook.react.bridge.BaseActivityEventListener;
+import com.braintreepayments.api.GooglePayListener;
+import com.braintreepayments.api.PayPalDataCollectorRequest;
+import com.braintreepayments.api.PayPalDataCollectorCallback;
+import com.braintreepayments.api.PayPalDataCollector;
+
+import com.braintreepayments.api.PayPalListener;
+import com.braintreepayments.api.PaymentMethodNonce;
+import com.braintreepayments.api.VenmoListener;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.WritableMap;
+import com.braintreepayments.api.GooglePayCardNonce;
+import com.braintreepayments.api.GooglePayRequest;
+import com.braintreepayments.api.InvalidArgumentException;
+import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.BaseActivityEventListener;
+import com.braintreepayments.api.DataCollectorCallback;
+import com.braintreepayments.api.ErrorWithResponse;
+import com.braintreepayments.api.BraintreeError;
+import com.braintreepayments.api.GooglePayClient;
+import com.braintreepayments.api.BraintreeClient;
+import com.braintreepayments.api.PayPalClient;
+import com.braintreepayments.api.VenmoClient;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+
 import com.google.android.gms.wallet.PaymentData;
 import com.google.android.gms.wallet.TransactionInfo;
 import com.google.android.gms.wallet.WalletConstants;
@@ -39,254 +48,308 @@ import com.google.gson.Gson;
 
 import java.util.HashMap;
 import java.util.Map;
-
 public class Braintree extends ReactContextBaseJavaModule {
-    private String token;
-    private Callback deviceDataCallback;
-    private Boolean collectDeviceData = false;
-    private Callback successCallback;
-    private Callback errorCallback;
 
-    private Client mBraintreeFragment;
+  private String token;
+  private Callback deviceDataCallback;
+  private Boolean collectDeviceData = false;
+  private Callback successCallback;
+  private Callback errorCallback;
+  private BraintreeClient braintreeClient;
 
-    public Braintree(ReactApplicationContext reactContext) {
-        super(reactContext);
-        reactContext.addActivityEventListener(this);
+  private GooglePayClient mGooglePayClient;
+  private PayPalClient mPayPalClient;
+  private VenmoClient mVenmoClient;
+  private DataCollectorRequest googleDataCollectorRequest;
+  private DataCollectorRequest venmoDataCollectorRequest;
+
+  private PayPalDataCollectorRequest payPalDataCollectorRequest;
+
+  private Context mContext;
+  private GooglePayListener googlePayListener;
+  private DataCollector googleDataCollector;
+  private DataCollector venmoDataCollector;
+
+  private PayPalDataCollector payPalDataCollector;
+
+  public Braintree(ReactApplicationContext reactContext) {
+    super(reactContext);
+    reactContext.addActivityEventListener(activityEventListener);
+    mContext = reactContext;
+  }
+
+
+  @Override
+  public String getName() {
+    return "Braintree";
+  }
+
+  public String getToken() {
+    return this.token;
+  }
+
+  public void setToken(String token) {
+    this.token = token;
+  }
+
+  public void onCancel(int requestCode) {
+    nonceErrorCallback("USER_CANCELLATION");
+  }
+
+  public void onPaymentMethodNonceCreated(
+    PaymentMethodNonce paymentMethodNonce) {
+
+    if (paymentMethodNonce instanceof GooglePayCardNonce) {
+
+      WritableMap payment = new WritableNativeMap();
+      payment.putString("nonce", paymentMethodNonce.getString());
+      WritableMap billingContact = new WritableNativeMap();
+
+      billingContact.putString(
+        "streetAddress",
+        ((GooglePayCardNonce) paymentMethodNonce)
+          .getBillingAddress()
+          .getStreetAddress());
+      billingContact.putString(
+        "city", ((GooglePayCardNonce) paymentMethodNonce)
+          .getBillingAddress()
+          .getLocality());
+      billingContact.putString(
+        "state", ((GooglePayCardNonce) paymentMethodNonce)
+          .getBillingAddress()
+          .getRegion());
+      billingContact.putString(
+        "country", ((GooglePayCardNonce) paymentMethodNonce)
+          .getBillingAddress()
+          .getCountryCodeAlpha2());
+      billingContact.putString(
+        "postalCode", ((GooglePayCardNonce) paymentMethodNonce)
+          .getBillingAddress()
+          .getPostalCode());
+      billingContact.putString(
+        "countryCode", ((GooglePayCardNonce) paymentMethodNonce)
+          .getBillingAddress()
+          .getCountryCodeAlpha2());
+      payment.putMap("billingContact", billingContact);
+      objCallback(payment);
+
+    } else {
+      nonceCallback(paymentMethodNonce.getString());
     }
+  }
 
-    @Override
-    public String getName() {
-        return "Braintree";
-    }
+  public void onError(Exception error) {
+    Log.e("PAYMENT_REQUEST", "I got an error", error);
+    if (error instanceof ErrorWithResponse) {
+      ErrorWithResponse errorWithResponse = (ErrorWithResponse) error;
+      BraintreeError cardErrors =
+        errorWithResponse.errorFor("creditCard");
+      if (cardErrors != null) {
+        Gson gson = new Gson();
+        final Map<String, String> errors = new HashMap<>();
+        BraintreeError numberError = cardErrors.errorFor("number");
+        BraintreeError cvvError = cardErrors.errorFor("cvv");
+        BraintreeError expirationDateError =
+          cardErrors.errorFor("expirationDate");
+        BraintreeError postalCode = cardErrors.errorFor("postalCode");
 
-    public String getToken() {
-        return this.token;
-    }
-
-    public void setToken(String token) {
-        this.token = token;
-    }
-
-    @Override
-    public void onCancel(int requestCode) {
-        nonceErrorCallback("USER_CANCELLATION");
-    }
-
-    @Override
-    public void onPaymentMethodNonceCreated(
-            PaymentMethodNonce paymentMethodNonce) {
-
-        if (paymentMethodNonce instanceof GooglePaymentCardNonce) {
-
-            WritableMap payment = new WritableNativeMap();
-            payment.putString("nonce", paymentMethodNonce.getNonce());
-            WritableMap billingContact = new WritableNativeMap();
-
-            billingContact.putString(
-                    "streetAddress",
-                    ((GooglePaymentCardNonce) paymentMethodNonce)
-                            .getBillingAddress()
-                            .getStreetAddress());
-            billingContact.putString(
-                    "city", ((GooglePaymentCardNonce) paymentMethodNonce)
-                            .getBillingAddress()
-                            .getLocality());
-            billingContact.putString(
-                    "state", ((GooglePaymentCardNonce) paymentMethodNonce)
-                            .getBillingAddress()
-                            .getRegion());
-            billingContact.putString(
-                    "country", ((GooglePaymentCardNonce) paymentMethodNonce)
-                            .getBillingAddress()
-                            .getCountryCodeAlpha2());
-            billingContact.putString(
-                    "postalCode", ((GooglePaymentCardNonce) paymentMethodNonce)
-                            .getBillingAddress()
-                            .getPostalCode());
-            billingContact.putString(
-                    "countryCode", ((GooglePaymentCardNonce) paymentMethodNonce)
-                            .getBillingAddress()
-                            .getCountryCodeAlpha2());
-            payment.putMap("billingContact", billingContact);
-            objCallback(payment);
-
-        } else {
-            nonceCallback(paymentMethodNonce.getNonce());
+        if (numberError != null) {
+          errors.put("card_number", numberError.getMessage());
         }
+
+        if (cvvError != null) {
+          errors.put("cvv", cvvError.getMessage());
+        }
+
+        if (expirationDateError != null) {
+          errors.put("expiration_date", expirationDateError.getMessage());
+        }
+
+        // TODO add more fields
+        if (postalCode != null) {
+          errors.put("postal_code", postalCode.getMessage());
+        }
+
+        nonceErrorCallback(gson.toJson(errors));
+      } else {
+        nonceErrorCallback(errorWithResponse.getErrorResponse());
+      }
     }
+  }
 
-    @Override
-    public void onError(Exception error) {
-        Log.e("PAYMENT_REQUEST", "I got an error", error);
-        if (error instanceof ErrorWithResponse) {
-            ErrorWithResponse errorWithResponse = (ErrorWithResponse) error;
-            BraintreeError cardErrors =
-                    errorWithResponse.errorFor("creditCard");
-            if (cardErrors != null) {
-                Gson gson = new Gson();
-                final Map<String, String> errors = new HashMap<>();
-                BraintreeError numberError = cardErrors.errorFor("number");
-                BraintreeError cvvError = cardErrors.errorFor("cvv");
-                BraintreeError expirationDateError =
-                        cardErrors.errorFor("expirationDate");
-                BraintreeError postalCode = cardErrors.errorFor("postalCode");
+  @ReactMethod
+  public void setup(final String token, final Callback successCallback,
+                    final Callback errorCallback) {
+    this.braintreeClient = new BraintreeClient(mContext, token);
+    this.mGooglePayClient  = new GooglePayClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
+    this.mGooglePayClient.setListener((GooglePayListener) mContext);
 
-                if (numberError != null) {
-                    errors.put("card_number", numberError.getMessage());
+    this.mPayPalClient = new PayPalClient(this.braintreeClient);
+    this.mPayPalClient.setListener((PayPalListener) mContext);
+
+    this.mVenmoClient = new VenmoClient((FragmentActivity) getCurrentActivity(), this.braintreeClient);
+    this.mVenmoClient.setListener((VenmoListener) mContext);
+  }
+
+
+
+
+  public void nonceCallback(String nonce) {
+    if (nonce != null) {
+      this.successCallback.invoke(nonce);
+    } else {
+      this.errorCallback.invoke("Sorry, we cannot access you payment method.");
+    }
+  }
+
+  public void objCallback(WritableMap obj) {
+    this.successCallback.invoke(obj);
+  }
+
+  public void nonceErrorCallback(String error) {
+    this.errorCallback.invoke(error);
+  }
+
+//  private final ActivityEventListener activityEventListener =
+//    new BaseActivityEventListener() {
+//      @Override
+//      public void onActivityResult(Activity activity, int requestCode,
+//                                   int resultCode, Intent data) {
+//        int unshiftRequestCode = requestCode & 0x0000ffff;
+//        if (unshiftRequestCode == BraintreeRequestCodes.GOOGLE_PAY) {
+//          if (data != null) {
+//            switch (resultCode) {
+//              case Activity.RESULT_OK:
+////                GooglePayClient.tokenize(this.mGooglePayClient,
+////                  PaymentData.getFromIntent(data));
+//                break;
+//              case Activity.RESULT_CANCELED:
+//                nonceErrorCallback("USER_CANCELLATION");
+//                break;
+//            }
+//          } else {
+//            nonceErrorCallback("NO_DATA_AVAILABLE");
+//          }
+//        }
+//      }
+//    };
+
+
+  private final ActivityEventListener activityEventListener =
+    new BaseActivityEventListener() {
+      @Override
+      public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+//        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+          case BraintreeRequestCodes.GOOGLE_PAY:
+            this.mGooglePayClient.tokenize(data);
+            break;
+          case BraintreeRequestCodes.PAYPAL:
+    //        this.mGooglePayClient.tokenize(data);
+            break;
+          case BraintreeRequestCodes.VENMO:
+    //        venmoClient.onActivityResult(this, resultCode, data, this::handleVenmoResult);
+            break;
+        }
+      }
+    };
+
+//  @Override
+//  protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+//    super.onActivityResult(requestCode, resultCode, data);
+//    switch (requestCode) {
+//      case BraintreeRequestCodes.GOOGLE_PAY:
+//        this.mGooglePayClient.tokenize(data);
+//        break;
+//      case BraintreeRequestCodes.PAYPAL:
+////        this.mGooglePayClient.tokenize(data);
+//        break;
+//      case BraintreeRequestCodes.VENMO:
+////        venmoClient.onActivityResult(this, resultCode, data, this::handleVenmoResult);
+//        break;
+//    }
+//  }
+
+  @ReactMethod
+  public void showGooglePayViewController(final ReadableMap options,
+                                          final Callback successCallback,
+                                          final Callback errorCallback) {
+    this.successCallback = successCallback;
+    this.errorCallback = errorCallback;
+    GooglePayRequest googlePayRequest = new GooglePayRequest();
+    googlePayRequest.setTransactionInfo(
+      TransactionInfo.newBuilder()
+        .setTotalPrice(options.getString("totalPrice"))
+        .setTotalPriceStatus(
+          WalletConstants.TOTAL_PRICE_STATUS_FINAL)
+        .setCurrencyCode(options.getString("currencyCode"))
+        .build());
+    googlePayRequest.setBillingAddressRequired(options.getBoolean("requireAddress"));
+    this.mGooglePayClient.requestPayment((FragmentActivity) this.mContext, googlePayRequest);
+  }
+
+  @ReactMethod
+  public void getDeviceData(final ReadableMap options,
+                            final Callback successCallback,
+                            final Callback errorCallback) {
+
+    try {
+      this.deviceDataCallback = successCallback;
+      this.collectDeviceData = true;
+      if (this.mPayPalClient instanceof PayPalClient) {
+        payPalDataCollectorRequest = new PayPalDataCollectorRequest(true, null);
+        PayPalDataCollectorCallback payPalDataCollectorCallback = new PayPalDataCollectorCallback() {
+          @Override
+          public void onResult(@Nullable String deviceData, @Nullable Exception error) {
+
+                if (deviceData != null) {
+                  successCallback.invoke(deviceData);
+                } else {
+                  errorCallback.invoke("BT:: DEVICE_DATA is empty.");
                 }
+          }
+        };
 
-                if (cvvError != null) {
-                    errors.put("cvv", cvvError.getMessage());
-                }
-
-                if (expirationDateError != null) {
-                    errors.put("expiration_date", expirationDateError.getMessage());
-                }
-
-                // TODO add more fields
-                if (postalCode != null) {
-                    errors.put("postal_code", postalCode.getMessage());
-                }
-
-                nonceErrorCallback(gson.toJson(errors));
+        payPalDataCollector.collectDeviceData(this.mContext, payPalDataCollectorRequest,  payPalDataCollectorCallback);
+      } else if(this.mGooglePayClient instanceof GooglePayClient) {
+        googleDataCollectorRequest = new DataCollectorRequest(true);
+        DataCollectorCallback googleDataCollectorCallback = new DataCollectorCallback() {
+          @Override
+          public void onResult(@Nullable String deviceData, @Nullable Exception error) {
+            if (deviceData != null) {
+              successCallback.invoke(deviceData);
             } else {
-                nonceErrorCallback(errorWithResponse.getErrorResponse());
+              errorCallback.invoke("BT:: DEVICE_DATA is empty.");
             }
-        }
-    }
+          }
+        };
 
-    @ReactMethod
-    public void setup(final String token, final Callback successCallback,
-                      final Callback errorCallback) {
-        try {
-            this.mBraintreeFragment = Client.newInstance(
-                    (FragmentActivity) getCurrentActivity(), token);
-        } catch (InvalidArgumentException e) {
-            Log.e("PAYMENT_REQUEST", "I got an error", e);
-            errorCallback.invoke(e.getMessage());
-        }
-        if (this.mBraintreeFragment instanceof Client) {
-            this.setToken(token);
-            successCallback.invoke(this.getToken());
-        }
-    }
-
-    public void nonceCallback(String nonce) {
-        if (nonce != null) {
-            this.successCallback.invoke(nonce);
-        } else {
-            this.errorCallback.invoke("Sorry, we cannot access you payment method.");
-        }
-    }
-
-    public void objCallback(WritableMap obj) {
-        this.successCallback.invoke(obj);
-    }
-
-    public void nonceErrorCallback(String error) {
-        this.errorCallback.invoke(error);
-    }
-
-    @Override
-    public void onActivityResult( int requestCode, int resultCode, Intent data) {
-        int unshiftRequestCode = requestCode & 0x0000ffff;
-        if (unshiftRequestCode == BraintreeRequestCodes.GOOGLE_PAYMENT) {
-            if (data != null) {
-                switch (resultCode) {
-                    case Activity.RESULT_OK:
-                        GooglePayment.tokenize(mBraintreeFragment,
-                                PaymentData.getFromIntent(data));
-                        break;
-                    case Activity.RESULT_CANCELED:
-                        nonceErrorCallback("USER_CANCELLATION");
-                        break;
-                }
+        googleDataCollector.collectDeviceData(this.mContext, googleDataCollectorRequest,googleDataCollectorCallback);
+      }  else if(this.mVenmoClient instanceof VenmoClient) {
+        venmoDataCollectorRequest = new DataCollectorRequest(true);
+        DataCollectorCallback venmoDataCollectorCallback = new DataCollectorCallback() {
+          @Override
+          public void onResult(@Nullable String deviceData, @Nullable Exception error) {
+            if (deviceData != null) {
+              successCallback.invoke(deviceData);
             } else {
-                nonceErrorCallback("NO_DATA_AVAILABLE");
+              errorCallback.invoke("BT:: DEVICE_DATA is empty.");
             }
-        }
-    }
+          }
+        };
 
-    @ReactMethod
-    public void paypalRequest(final Callback successCallback,
-                              final Callback errorCallback) {
-        this.successCallback = successCallback;
-        this.errorCallback = errorCallback;
-        PayPalRequest request = new PayPalRequest().currencyCode("USD").intent(
-                PayPalRequest.INTENT_AUTHORIZE);
-        PayPal.tokenizePayPalAccount(this.mBraintreeFragment, request, onPaymentMethodNonceCreated);
+        venmoDataCollector.collectDeviceData(this.mContext, venmoDataCollectorRequest, venmoDataCollectorCallback);
+      }
     }
-
-    @ReactMethod
-    public void venmoRequest(final Callback successCallback,
-                             final Callback errorCallback) {
-        this.successCallback = successCallback;
-        this.errorCallback = errorCallback;
-        Venmo.authorizeAccount(this.mBraintreeFragment, false);
+    catch(Exception e) {
+      errorCallback.invoke("BT:: DATA_COLLECTOR not init.");
     }
+  }
 
-    @ReactMethod
-    public void showGooglePayViewController(final ReadableMap options,
-                                            final Callback successCallback,
-                                            final Callback errorCallback) {
-        this.successCallback = successCallback;
-        this.errorCallback = errorCallback;
-        GooglePaymentRequest googlePaymentRequest =
-                new GooglePaymentRequest()
-                        .transactionInfo(
-                                TransactionInfo.newBuilder()
-                                        .setTotalPrice(options.getString("totalPrice"))
-                                        .setTotalPriceStatus(
-                                                WalletConstants.TOTAL_PRICE_STATUS_FINAL)
-                                        .setCurrencyCode(options.getString("currencyCode"))
-                                        .build())
-                        .billingAddressRequired(options.getBoolean("requireAddress"));
 
-        if (options.hasKey("googleMerchantId")) {
-            googlePaymentRequest.googleMerchantId(
-                    options.getString("googleMerchantId"));
-        }
-        GooglePayment.requestPayment(this.mBraintreeFragment, googlePaymentRequest);
-    }
 
-    @ReactMethod
-    public void getDeviceData(final ReadableMap options,
-                              final Callback successCallback,
-                              final Callback errorCallback) {
-        if (this.mBraintreeFragment instanceof Client) {
-            this.deviceDataCallback = successCallback;
-            this.collectDeviceData = true;
-            String type = options.getString("dataCollector");
-            if (type.equals("paypal")) {
-                DataCollector.collectPayPalDeviceData(
-                        this.mBraintreeFragment, new BraintreeResponseListener<String>() {
-                            @Override
-                            public void onResponse(String deviceData) {
-                                if (deviceData != null) {
-                                    successCallback.invoke(deviceData);
-                                } else {
-                                    errorCallback.invoke("BT:: DEVICE_DATA is empty.");
-                                }
-                            }
-                        });
-            } else {
-                DataCollector.collectDeviceData(
-                        this.mBraintreeFragment, new BraintreeResponseListener<String>() {
-                            @Override
-                            public void onResponse(String deviceData) {
-                                if (deviceData != null) {
-                                    successCallback.invoke(deviceData);
-                                } else {
-                                    errorCallback.invoke("BT:: DEVICE_DATA is empty.");
-                                }
-                            }
-                        });
-            }
-        } else {
-            errorCallback.invoke("BT:: DATA_COLLECTOR not init.");
-        }
-    }
 
-    public void onNewIntent(Intent intent) {
-    }
+
+  public void onNewIntent(Intent intent) {
+  }
 }
