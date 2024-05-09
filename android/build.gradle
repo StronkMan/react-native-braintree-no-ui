@@ -1,12 +1,12 @@
 apply plugin: "com.android.library"
 
 android {
-    compileSdkVersion 30
+    compileSdkVersion 31
     buildToolsVersion "30.0.1"
 
     defaultConfig {
         minSdkVersion 16
-        targetSdkVersion 30
+        targetSdkVersion 31
         versionCode 1
         versionName "1.0"
     }
@@ -21,10 +21,13 @@ android {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
     implementation 'com.google.android.gms:play-services-wallet:18.0.0'
-    implementation 'com.braintreepayments.api:google-payment:3.3.1'
-    implementation 'com.braintreepayments.api:data-collector:3.21.1'
+    implementation 'com.braintreepayments.api:google-pay:4.45.0'
+    implementation 'com.braintreepayments.api:data-collector:4.45.0'
+    implementation 'com.braintreepayments.api:paypal-data-collector:4.45.0'
     implementation "com.facebook.react:react-native:+"
-    implementation 'com.braintreepayments.api:braintree:3.21.1'
-    implementation 'com.braintreepayments.api:three-d-secure:3.21.1'
+//    implementation 'com.braintreepayments.api:braintree:4.45.0'
+    implementation 'com.braintreepayments.api:venmo:4.45.0'
+    implementation 'com.braintreepayments.api:paypal:4.45.0'
+    implementation 'com.braintreepayments.api:three-d-secure:4.45.0'
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.8.6'
 }
